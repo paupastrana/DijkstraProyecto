@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>OaxacaMap</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""
+  />
+  <style> 
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+    .panel {position: fixed; top: 10px; left: 10px; z-index: 1000;background: #fff; padding: 8px 10px; border-radius: 8px;font-family: system-ui, sans-serif; width: 220px; border: 1px solid #ddd;}
+    #btn-limpiar { margin-top: 6px; padding: 4px 8px; background-color: #5564eb;color: white;}
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div class="panel">
+    <div><strong>OAXACAMAP</strong></div>
+    <div>Haz click en el origen y en el destino para encontrar la ruta</div>
+    <hr/>
+    <div id="resumen-d">Distancia: —</div>
+    <div id="resumen-t">Tiempo: —</div>
+    <button id="btn-limpiar">Nueva ruta</button>
+  </div>
+
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin="">
+  </script>
+  <script>
+    const mapa = L.map('map').setView([{{lat}},{{lon}}], 12); //creamos el mapa y loo centramos desde openstreetmap
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 20, attribution: '&copy; OpenStreetMap'}).addTo(mapa);
+
+    let origen=null,destino=null;
+    let marcadorOrigen=null,marcadorDestino=null,polilinea=null;
+
+    function limpiar() {
+      origen=destino=null;
+      if (marcadorOrigen){mapa.removeLayer(marcadorOrigen);marcadorOrigen=null; }
+      if (marcadorDestino){mapa.removeLayer(marcadorDestino);marcadorDestino=null; }
+      if (polilinea){mapa.removeLayer(polilinea);polilinea=null; }
+      document.getElementById('resumen-d').innerText ='Distancia: —';
+      document.getElementById('resumen-t').innerText ='Tiempo: —';
+    }
+    document.getElementById('btn-limpiar').onclick = limpiar;
+
+    //clicks en el mapa
+    mapa.on('click', async (e) => {
+      if (!origen) {
+        origen = e.latlng;
+        marcadorOrigen = L.marker(origen).addTo(mapa);
+        return;
+      }
+
+      if (!destino) {
+        destino=e.latlng;
+        marcadorDestino=L.marker(destino).addTo(mapa);
+
+        const url=`/ruta?lat_o=${origen.lat}&lon_o=${origen.lng}&lat_d=${destino.lat}&lon_d=${destino.lng}`;
+        const r=await fetch(url);
+        if (!r.ok) return;
+
+        const data=await r.json();
+        if (polilinea) mapa.removeLayer(polilinea);
+
+        if (data.coords && data.coords.length > 1) {
+          polilinea = L.polyline(data.coords, {weight: 5}).addTo(mapa);
+          mapa.fitBounds(polilinea.getBounds(), {padding:[20,20]});
+          document.getElementById('resumen-d').innerText = 'Distancia: ' + (data.distancia_m || 0).toFixed(0) + ' m';
+          document.getElementById('resumen-t').innerText = 'Tiempo: ' + ((data.tiempo_s || 0)/60).toFixed(1) + ' min';
+        }
+        return;
+      }
+
+      // en el 3 reinicia y toma nuevo origen
+      limpiar();
+      origen=e.latlng;
+      marcadorOrigen=L.marker(origen).addTo(mapa);
+    });
+  </script>
+</body>
+</html>
